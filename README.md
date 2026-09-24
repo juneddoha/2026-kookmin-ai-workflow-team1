@@ -2,6 +2,7 @@
 
 > 음식 취향 30초 입력 → 찰떡 밥메이트 + 식당 자동 추천  
 > AWS 부트캠프 국민대 AI Workflow 팀 1
+
 배포 URL: http://kmu-agent-46-babbti-s3.s3-website-us-east-1.amazonaws.com
 
 ## 서비스 개요
