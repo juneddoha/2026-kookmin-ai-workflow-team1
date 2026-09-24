@@ -1,5 +1,7 @@
 # 밥BTI — 취향 기반 학과 밥 약속 매칭
 
+![밥BTI 시작 화면](images/babbti-landing.png)
+
 > 음식 취향 30초 입력 → 찰떡 밥메이트 + 식당 자동 추천  
 > AWS 부트캠프 국민대 AI Workflow 팀 1
 
