@@ -1,118 +1,109 @@
-# 밥BTI — 취향 기반 학과 밥 약속 매칭
+<div align="center">
+
+# 🍚 밥BTI
+
+### 오늘 점심, 누구랑 뭐 먹지?
+
+음식 취향으로 **밥메이트를 찾고**, 함께 먹을 **식당을 추천받는** 웹 서비스
+
+[서비스 체험하기](http://kmu-agent-46-babbti-s3.s3-website-us-east-1.amazonaws.com)
+
+</div>
 
 ![밥BTI 시작 화면](images/babbti-landing.png)
 
-> 음식 취향 30초 입력 → 찰떡 밥메이트 + 식당 자동 추천  
-> AWS 부트캠프 국민대 AI Workflow 팀 1
+> 국민대학교 AWS 부트캠프 AI Workflow 팀 1 프로젝트
 
-배포 URL: http://kmu-agent-46-babbti-s3.s3-website-us-east-1.amazonaws.com
+## 목차
 
-## 서비스 개요
+- [1. 프로젝트 소개](#1-프로젝트-소개)
+- [2. 주요 기능](#2-주요-기능)
+- [3. 이용 흐름](#3-이용-흐름)
+- [4. 구현 구조와 추천 방식](#4-구현-구조와-추천-방식)
+- [5. 기술 스택](#5-기술-스택)
+- [6. 실행 방법](#6-실행-방법)
+- [7. 팀 역할](#7-팀-역할)
 
-단일 `index.html` 파일 하나로 동작하는 취향 기반 밥 약속 매칭 서비스입니다.  
-서버·빌드 환경 없이 브라우저에서 바로 열리며, Firebase Realtime Database 연결 시 실시간 그룹 매칭이 활성화됩니다.
+---
 
+## 1. 프로젝트 소개
+
+밥 약속을 잡을 때 함께 먹을 사람과 메뉴를 정하기 어려운 순간을 위한 서비스입니다. 선호 음식, 매운맛·짠맛·단맛, 향신료, 예산, 식사량을 입력하면 취향을 분석해 **밥BTI 유형**, **잘 맞는 밥메이트**, **그룹에 어울리는 식당**을 보여줍니다.
+
+설치나 빌드 과정이 없는 단일 페이지로 만들었습니다. 기본 결과는 샘플 참가자 15명과 가상 식당 12곳을 사용해 바로 확인할 수 있고, Firebase Realtime Database에 연결되면 같은 룸 코드로 입장한 실제 참가자와 실시간 그룹 매칭도 할 수 있습니다.
+
+## 2. 주요 기능
+
+| 기능 | 내용 |
+|---|---|
+| 취향 입력 · 밥BTI | 음식 카테고리와 6가지 세부 취향을 입력받아 9가지 유형 중 하나를 보여줍니다. |
+| 밥메이트 추천 | 7가지 취향 요소의 유사도를 계산해 잘 맞는 사람 3명과 매칭 이유를 보여줍니다. |
+| 식당 추천 | 그룹의 평균 취향과 음식 카테고리 선호도를 바탕으로 큐레이션 식당 3곳을 추천합니다. |
+| 내 주변 식당 | 위치 권한을 허용하면 반경 800m의 OpenStreetMap 식당 데이터를 검색하고 취향·거리로 순위를 매깁니다. 검색에 실패하면 기존 큐레이션 결과를 유지합니다. |
+| 라이브 룸 | 같은 룸 코드의 참가자를 Firebase로 동기화하고 취향이 가까운 사람끼리 최대 4명씩 묶습니다. |
+| 취향 통계 · 좋아요 | 참여자의 맛 선호와 인기 음식 분포를 시각화하고, 룸의 좋아요를 집계합니다. |
+| AI 매칭 코멘트 | Anthropic API 키를 별도로 설정한 경우 Claude가 매칭 이유를 짧은 문장으로 설명합니다. 기본 설정에서는 비활성화됩니다. |
+
+## 3. 이용 흐름
+
+1. 닉네임과 비밀번호로 시작하고, 참여할 **룸 코드**를 입력합니다.
+2. 좋아하는 음식과 맛·예산·식사량을 선택합니다.
+3. 밥BTI 유형, 밥메이트 TOP 3, 추천 식당을 확인합니다.
+4. 원하면 **내 주변 실제 식당 찾기**를 누르거나 같은 룸 코드로 참여한 사람들의 실시간 그룹을 확인합니다.
+
+> 시작 화면의 닉네임·비밀번호는 데모용 저장 방식입니다. 비밀번호가 브라우저 저장소와 Firebase 데이터베이스에 평문으로 저장되므로 다른 서비스에서 쓰는 비밀번호를 입력하지 마세요.
+
+## 4. 구현 구조와 추천 방식
+
+```text
+index.html                 화면 · 스타일 · 추천 로직 · 외부 서비스 연동
+images/
+└── babbti-landing.png     README 시작 화면
 ```
-index.html
- ├── 로그인          닉네임 + 비번으로 계정 생성 / 자동 로그인 (localStorage)
- ├── 활성 룸 목록    현재 참여 중인 룸 실시간 표시
- ├── 취향 입력       카테고리·매운맛·짠맛·단맛·향신료·예산·결정스타일
- ├── 밥BTI 타입      9종 중 1개 판정
- ├── 밥메이트 TOP 3  7차원 유사도 알고리즘으로 매칭
- ├── 추천 식당 TOP 3 그룹 평균 취향 기반 콘텐츠 매칭
- │     └── GPS 버튼  OpenStreetMap으로 반경 800m 실제 식당 검색
- ├── 라이브 룸       Firebase 연결 시 실시간 3~4인 그룹핑
- └── 취향 통계       매운맛·짠맛·단맛·향신료·인기 카테고리 분포
-```
 
-## 실행 방법
+`index.html` 한 파일에 HTML, CSS, JavaScript가 들어 있습니다. 별도의 Node.js 서버나 패키지 설치가 필요하지 않습니다. Firebase SDK는 CDN에서 불러오며, 주변 식당 검색은 브라우저에서 Overpass API를 호출합니다.
 
-### 로컬 데모 (Firebase 없이)
+| 단계 | 코드에서 사용하는 방식 |
+|---|---|
+| 밥BTI 유형 | 입력값에 우선순위 규칙을 적용해 9가지 유형 중 하나를 판정 |
+| 밥메이트 | 음식 카테고리의 자카드 유사도와 매운맛·짠맛·단맛·향신료·예산·식사량의 근접도를 가중합 |
+| 그룹 식당 | 그룹의 음식 선호 투표와 평균 맛·예산을 식당 속성과 비교 |
+| 실시간 그룹 | 같은 룸 참가자 중 취향이 비슷한 사람부터 묶는 그리디 방식 |
+| 주변 식당 | OpenStreetMap의 식당 데이터를 취향 적합도 45%·거리 45%·기본 점수 10%로 정렬 |
+
+밥메이트 유사도 가중치는 **음식 카테고리 32% · 매운맛 18% · 짠맛 12% · 단맛 10% · 향신료 8% · 예산 12% · 식사량 8%**입니다. 첫 방문에도 추천이 가능하도록, 과거 이용 기록 대신 현재 입력한 취향을 사용합니다.
+
+## 5. 기술 스택
+
+| 구분 | 기술 |
+|---|---|
+| **Frontend** | ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) |
+| **실시간 데이터** | ![Firebase](https://img.shields.io/badge/Firebase_Realtime_Database-FFCA28?style=flat-square&logo=firebase&logoColor=black) |
+| **위치 · 식당 검색** | ![Geolocation API](https://img.shields.io/badge/Geolocation_API-4285F4?style=flat-square&logoColor=white) ![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-7EBC6F?style=flat-square&logo=openstreetmap&logoColor=white) ![Overpass API](https://img.shields.io/badge/Overpass_API-4C9F38?style=flat-square&logoColor=white) |
+| **AI 코멘트 (선택)** | ![Anthropic Claude](https://img.shields.io/badge/Anthropic_Claude-191919?style=flat-square&logo=anthropic&logoColor=white) |
+| **배포** | ![Amazon S3](https://img.shields.io/badge/Amazon_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) |
+
+## 6. 실행 방법
+
+저장소를 내려받아 루트 디렉터리에서 정적 서버를 실행합니다.
+
 ```bash
-# 방법 1: Python 서버
-python3 -m http.server 3000
-# http://localhost:3000/index.html
-
-# 방법 2: VS Code Live Server 확장 설치 후 index.html 우클릭 → Open with Live Server
+git clone https://github.com/juneddoha/2026-kookmin-ai-workflow-team1.git
+cd 2026-kookmin-ai-workflow-team1
+python -m http.server 3000
 ```
 
-> `file://` 직접 열기는 Firebase CORS 차단 및 GPS 미동작 가능성 있음
+브라우저에서 `http://localhost:3000`에 접속합니다. `index.html`을 직접 열어 화면을 볼 수도 있지만, 실시간 연결과 위치 기능을 확인할 때는 로컬 서버를 사용하세요.
 
-### 배포 (실서비스)
+- Firebase 설정은 현재 `index.html`의 `firebaseConfig`에 들어 있습니다. 실시간 룸 기능은 해당 데이터베이스의 연결 상태와 규칙에 따라 동작합니다.
+- Claude 코멘트는 기본적으로 꺼져 있습니다. API 키를 공개 HTML 파일에 넣으면 방문자에게 노출되므로, 실제 운영에서는 서버를 통해 API를 호출해야 합니다.
+- 위치 기능은 브라우저의 위치 권한과 **HTTPS 또는 `localhost`**가 필요합니다. 위 S3 정적 웹사이트 주소는 HTTP이므로 그 주소에서는 주변 식당 찾기가 동작하지 않을 수 있습니다.
 
-- **GitHub Pages** (권장): `Settings → Pages → main branch / (root)` → 링크 공유
-- **S3 + CloudFront**: 버킷 정적 호스팅 + CloudFront HTTPS 배포
-- GPS 기능은 **HTTPS 환경 필수** — `file://` 및 HTTP S3 기본 엔드포인트 불가
+## 7. 팀 역할
 
-## Firebase 연결 (백엔드 담당자)
-
-1. [Firebase 콘솔](https://console.firebase.google.com) → 프로젝트 만들기
-2. **Realtime Database** → 데이터베이스 만들기 → **테스트 모드로 시작**
-3. 프로젝트 설정 → 내 앱 → 웹 앱 등록 → `firebaseConfig` 복사
-4. `index.html` 상단 `firebaseConfig` 블록에 실제 값 붙여넣기  
-   - `databaseURL` 반드시 포함 (없으면 Realtime DB 연결 안 됨)
-5. 탭 2개로 같은 룸 코드 입력 → 라이브 룸 "2명 참여 중" 확인
-
-> `apiKey`는 공개돼도 괜찮지만, **발표 후 DB Rules 잠금 또는 프로젝트 삭제 필수**
-
-## 알고리즘
-
-### 밥메이트 유사도 (7차원 가중합)
-
-```
-similarity(a, b) =
-  Jaccard(cats)    × 0.32   // 음식 카테고리 겹침
-  + 매운맛 근접도  × 0.18   // |spicy_a - spicy_b| / 5
-  + 짠맛 근접도    × 0.12   // |salty_a - salty_b| / 3
-  + 단맛 근접도    × 0.10   // |sweet_a - sweet_b| / 3
-  + 향신료 일치    × 0.08   // 같으면 1.0, 인접 0.5, 반대 0.0
-  + 예산 근접도    × 0.12   // |budget_a - budget_b| / 10000
-  + 결정스타일     × 0.08   // |amount_a - amount_b| / 2
-```
-
-### 식당 추천 (그룹 평균 기반)
-
-```
-resto_score =
-  카테고리 투표합  × 0.38
-  + 예산 근접도    × 0.20
-  + 매운맛 근접도  × 0.15
-  + 짠맛 근접도    × 0.12
-  + 단맛 근접도    × 0.08
-  + 향신료 선호    × 0.07
-```
-
-> 알고리즘 선택 이유: 취향을 1회만 입력하는 콜드스타트 상황 → 상호작용 이력 없이도 즉시 동작하는 콘텐츠 기반 방식 채택 (ALS/SVD++ 협업 필터링 제외)
-
-### GPS 실제 식당 추천 (Overpass API)
-
-```
-실제_식당_score =
-  그룹 취향 점수  × 0.45
-  + 거리 점수     × 0.45   // haversine 거리, 가까울수록 높음
-  + 기본 점수     × 0.10
-```
-
-- 데이터: [OpenStreetMap Overpass API](https://overpass-api.de) — API 키 불필요
-- OSM `cuisine` 태그 → 밥BTI 9개 카테고리 자동 매핑
-- 실패 시 기존 가상 큐레이션으로 폴백 (화면 깨짐 없음)
-
-## Firebase 구현 패턴
-
-| 기능 | 구현 방식 |
+| 담당 | 역할 |
 |---|---|
-| 브라우저 종료 시 자동 퇴장 | `onDisconnect().remove()` |
-| 좀비 참여자 필터 | 클라이언트 10분 타임스탬프 필터 |
-| 실시간 연결 상태 표시 | `.info/connected` 리스너 |
-| 좋아요 동시 집계 | `transaction()` 원자적 처리 |
-| XSS 방지 | `esc()` 이스케이프 (닉네임 등 공개 입력값) |
-| 참여자 실시간 동기화 | `on("value")` 리스너 (once → on 교체) |
-| 로그인 / 재방문 | Firebase DB 닉네임+비번 저장 + localStorage 자동 로그인 |
+| [junseok0929](https://github.com/junseok0929) | 프론트엔드 UI · 취향 매칭 알고리즘 |
+| [ChoHyeonChan](https://github.com/ChoHyeonChan) | Firebase 연동 · 실시간 동기화 |
+| [juneddoha](https://github.com/juneddoha) | GPS 기반 주변 식당 추천 |
 
-## 팀 역할
-
-| 역할 | 담당 |
-|---|---|
-| 프론트 UI / 취향 알고리즘 | junseok0929 |
-| Firebase 백엔드 / 실시간 동기화 | ChoHyeonChan |
-| GPS 실제 식당 추천 | juneddoha |
